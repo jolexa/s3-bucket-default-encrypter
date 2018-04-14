@@ -15,7 +15,7 @@ def lambda_handler(event, context):
     for bucketObj in buckets:
         stop = False
         bucketName = bucketObj['Name']
-        print("working on: {}".format(bucketName))
+        logger.info("working on: {}".format(bucketName))
         # Does it have tags?
         try:
             tagsSet = s3client.get_bucket_tagging(Bucket=bucketName)['TagSet']
@@ -27,38 +27,43 @@ def lambda_handler(event, context):
         except ClientError as e:
             if e.response['Error']['Code'] == 'NoSuchTagSet':
                 pass # continue onwards, no tags!
+            else:
+                print(e)
         if stop: continue # do not pass go, at this scope
         # Does the bucket already have encryption?
         try:
             encr = s3client.get_bucket_encryption(Bucket=bucketName)
-            logger.info("Skipping '{}', already encrypted!")
+            logger.info("Skipping '{}', already encrypted!".format(bucketName))
         except ClientError as e:
             # If not encrypted, then do stuff
             if e.response['Error']['Code'] == 'ServerSideEncryptionConfigurationNotFoundError':
                 logger.info("Bucket is not encrypted: '{}' - Enabling default encryption".format(bucketName))
-                # Count all the objects
-                paginator = s3client.get_paginator('list_objects_v2')
-                response_iterator = paginator.paginate(
-                    Bucket=bucketName
+                s3client.put_bucket_encryption(
+                    Bucket=bucketName,
+                    ServerSideEncryptionConfiguration={
+                        'Rules': [
+                            {
+                                 'ApplyServerSideEncryptionByDefault': {
+                                     'SSEAlgorithm': 'AES256',
+                                 }
+                             }
+                         ]
+                     }
+                 )
+                # Rough count all the objects (don't paginate on purpose)
+                r = s3client.list_objects_v2(Bucket=bucketName)
+                if r['IsTruncated']:
+                    count = "1000+"
+                else:
+                    count = r['KeyCount']
+                # Send a helpful message to the SNS Topic
+                snsclient = boto3.client('sns')
+                subj = "(!!): Enabled Encryption on '{}'".format(bucketName)
+                snsclient.publish(
+                    TopicArn=os.getenv('SNSNotifyArn'),
+                    # 100 char limit
+                    Subject=(subj[:98] + '..') if len(subj) > 100 else subj,
+                    Message="Bucket '{}' was automatically encrypted, there were {} items that are [maybe] not encrypted.".format(bucketName, count)
                 )
-                for objs in response_iterator:
-                    count = objs['KeyCount']
-                    # Send a helpful message to the SNS Topic
-                    snsclient = boto3.client('sns')
-                    snsclient.publish(
-                        TopicArn=os.getenv('SNSNotifyArn'),
-                        Subject="Attention: Enabled Default Encryption on '{}'".format(bucketName),
-                        Message="Bucket '{}' was automatically encrypted, there were {} items that are not encrypted.".format(bucketName, count)
-                    )
-                    s3client.put_bucket_encryption(
-                        Bucket=bucketName,
-                        ServerSideEncryptionConfiguration={
-                            'Rules': [
-                                {
-                                    'ApplyServerSideEncryptionByDefault': {
-                                        'SSEAlgorithm': 'AES256',
-                                    }
-                                }
-                            ]
-                        }
-                    )
+            else:
+                print(e)
