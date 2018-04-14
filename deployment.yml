@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: 'S3 Bucket Encrypter (github.com/jolexa/s3-bucket-default-encrypter)'
+
+Parameters:
+  Bucket:
+    Type: String
+  md5:
+    Type: String
+
+Resources:
+  S3EncrypterFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Sid: 'Lambda'
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+            - sts:AssumeRole
+      Path: "/cfn/"
+      Policies:
+      - PolicyName: S3
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:ListAllMyBuckets
+            - s3:ListBucket
+            - s3:GetBucketTagging
+            - s3:GetEncryptionConfiguration
+            - s3:PutEncryptionConfiguration
+            Resource:
+            - '*'
+      - PolicyName: SNS
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - sns:Publish
+            Resource:
+            - !Ref SNSEncrypterTopic
+
+  S3EncrypterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: 'S3 Bucket Encrypter (github.com/jolexa/s3-bucket-default-encrypter)'
+      Handler: main.lambda_handler
+      Runtime: python3.6
+      Timeout: 60
+      CodeUri:
+        Bucket: !Ref Bucket
+        Key: !Sub ${md5}.zip
+      Role: !GetAtt S3EncrypterFunctionRole.Arn
+      Environment:
+        Variables:
+          SNSNotifyArn: !Ref SNSEncrypterTopic
+
+  SNSEncrypterTopic:
+    Type: AWS::SNS::Topic
