@@ -53,7 +53,7 @@ Resources:
       Description: 'S3 Bucket Encrypter (github.com/jolexa/s3-bucket-default-encrypter)'
       Handler: main.lambda_handler
       Runtime: python3.6
-      Timeout: 60
+      Timeout: 300
       CodeUri:
         Bucket: !Ref Bucket
         Key: !Sub ${md5}.zip
