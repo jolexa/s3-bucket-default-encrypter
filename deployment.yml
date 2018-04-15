@@ -61,6 +61,11 @@ Resources:
       Environment:
         Variables:
           SNSNotifyArn: !Ref SNSEncrypterTopic
+      Events:
+        TwiceDaily:
+          Type: Schedule
+          Properties:
+            Schedule: cron(8 11,23 * * ? *)
 
   SNSEncrypterTopic:
     Type: AWS::SNS::Topic
