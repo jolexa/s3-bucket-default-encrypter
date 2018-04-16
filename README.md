@@ -45,6 +45,12 @@ experimented with [here](https://github.com/jolexa/fargate-from-lambda)
 To exclude this lambda function from automatically enabling encryption, you can
 set `X-StopAutoEncrypt = true` on the bucket.
 
+#### SNS Support
+Once this is deployed, find the SNS Topic and add your email address to receive
+notifications that look like:
+> _"Bucket 'mybucket' was automatically encrypted, there were 123 items that are
+[maybe] not encrypted."_
+
 ### Conclusion
 AWS Config Rules are promising, but need some work for real life usage in a way
 that is not cumbersome to maintain and expensive. In this case, I have an example of one
